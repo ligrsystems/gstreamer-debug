@@ -263,7 +263,7 @@ retry:
     delay = 0;
 
   if (log_counter % 100 == 0) {
-    GST_LOG_OBJECT (src, "delay: %" GST_STIME_FORMAT, GST_STIME_ARGS (delay));
+    GST_DEBUG_OBJECT (src, "delay: %" GST_STIME_FORMAT, GST_STIME_ARGS (delay));
   }
 
   if (delay < 0) {
