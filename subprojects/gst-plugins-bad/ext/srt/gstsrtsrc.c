@@ -156,8 +156,11 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
   int64_t srt_time;
   SRT_MSGCTRL mctrl;
 
+  GST_DEBUG_OBJECT (src, "Starting gst_srt_src_fill");
+
 retry:
   if (g_cancellable_is_cancelled (self->srtobject->cancellable)) {
+    GST_DEBUG_OBJECT (src, "Cancellable is cancelled, returning GST_FLOW_FLUSHING");
     ret = GST_FLOW_FLUSHING;
   }
 
@@ -165,6 +168,7 @@ retry:
     GST_ELEMENT_ERROR (src, RESOURCE, READ,
         ("Could not map the buffer for writing "), (NULL));
     ret = GST_FLOW_ERROR;
+    GST_DEBUG_OBJECT (src, "Failed to map buffer for writing, returning GST_FLOW_ERROR");
     goto out;
   }
 
@@ -176,18 +180,22 @@ retry:
   }
 
   base_time = gst_element_get_base_time (GST_ELEMENT (src));
+  GST_DEBUG_OBJECT (src, "Base time: %" GST_TIME_FORMAT, GST_TIME_ARGS(base_time));
 
   recv_len = gst_srt_object_read (self->srtobject, info.data,
       gst_buffer_get_size (outbuf), &err, &mctrl);
 
   /* Capture clock values ASAP */
   capture_time = gst_clock_get_time (clock);
+  GST_DEBUG_OBJECT (src, "Capture time: %" GST_TIME_FORMAT, GST_TIME_ARGS(capture_time));
 #if SRT_VERSION_VALUE >= 0x10402
   /* Use SRT clock value if available (SRT > 1.4.2) */
   srt_time = srt_time_now ();
+  GST_DEBUG_OBJECT (src, "Using SRT clock value: %" G_GINT64_FORMAT, srt_time);
 #else
   /* Else use the unix epoch monotonic clock */
   srt_time = g_get_real_time ();
+  GST_DEBUG_OBJECT (src, "Using unix epoch monotonic clock: %" G_GINT64_FORMAT, srt_time);
 #endif
   gst_object_unref (clock);
 
@@ -198,24 +206,29 @@ retry:
       G_GINT64_FORMAT, recv_len, mctrl.pktseq, mctrl.msgno, mctrl.srctime);
 
   if (g_cancellable_is_cancelled (self->srtobject->cancellable)) {
+    GST_DEBUG_OBJECT (src, "Cancellable is cancelled, returning GST_FLOW_FLUSHING");
     ret = GST_FLOW_FLUSHING;
     goto out;
   }
 
   if (recv_len < 0) {
     GST_ELEMENT_ERROR (src, RESOURCE, READ, (NULL), ("%s", err->message));
+    GST_DEBUG_OBJECT (src, "Error reading SRT object: %s", err->message);
     ret = GST_FLOW_ERROR;
     g_clear_error (&err);
     goto out;
   } else if (recv_len == 0) {
+    GST_DEBUG_OBJECT (src, "Received length is 0, stopping and restarting SRT source");
     gst_srt_src_stop (GST_BASE_SRC (self));
     if (self->keep_listening && gst_srt_src_start (GST_BASE_SRC (self))) {
       /* FIXME: Should send GAP event(s) downstream */
+      GST_DEBUG_OBJECT (src, "Keep listening is enabled, posting connection-removed message");
       gst_element_post_message (GST_ELEMENT_CAST (self),
           gst_message_new_element (GST_OBJECT_CAST (self),
               gst_structure_new_empty ("connection-removed")));
       goto retry;
     } else {
+      GST_DEBUG_OBJECT (src, "Returning GST_FLOW_EOS");
       ret = GST_FLOW_EOS;
       goto out;
     }
@@ -269,6 +282,7 @@ retry:
       GST_BUFFER_OFFSET (outbuf), GST_BUFFER_OFFSET_END (outbuf));
 
 out:
+  GST_DEBUG_OBJECT (src, "Exiting gst_srt_src_fill with return value: %d", ret);
   return ret;
 }
 
