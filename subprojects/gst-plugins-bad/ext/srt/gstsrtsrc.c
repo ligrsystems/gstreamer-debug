@@ -155,8 +155,11 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
   GstClockTimeDiff delay;
   int64_t srt_time;
   SRT_MSGCTRL mctrl;
+  static int log_counter = 0;
 
-  GST_DEBUG_OBJECT (src, "Starting gst_srt_src_fill");
+  if (log_counter % 100 == 0) {
+    GST_DEBUG_OBJECT (src, "Starting gst_srt_src_fill");
+  }
 
 retry:
   if (g_cancellable_is_cancelled (self->srtobject->cancellable)) {
@@ -180,30 +183,40 @@ retry:
   }
 
   base_time = gst_element_get_base_time (GST_ELEMENT (src));
-  GST_DEBUG_OBJECT (src, "Base time: %" GST_TIME_FORMAT, GST_TIME_ARGS(base_time));
+  if (log_counter % 100 == 0) {
+    GST_DEBUG_OBJECT (src, "Base time: %" GST_TIME_FORMAT, GST_TIME_ARGS(base_time));
+  }
 
   recv_len = gst_srt_object_read (self->srtobject, info.data,
       gst_buffer_get_size (outbuf), &err, &mctrl);
 
   /* Capture clock values ASAP */
   capture_time = gst_clock_get_time (clock);
-  GST_DEBUG_OBJECT (src, "Capture time: %" GST_TIME_FORMAT, GST_TIME_ARGS(capture_time));
+  if (log_counter % 100 == 0) {
+    GST_DEBUG_OBJECT (src, "Capture time: %" GST_TIME_FORMAT, GST_TIME_ARGS(capture_time));
+  }
 #if SRT_VERSION_VALUE >= 0x10402
   /* Use SRT clock value if available (SRT > 1.4.2) */
   srt_time = srt_time_now ();
-  GST_DEBUG_OBJECT (src, "Using SRT clock value: %" G_GINT64_FORMAT, srt_time);
+  if (log_counter % 100 == 0) {
+    GST_DEBUG_OBJECT (src, "Using SRT clock value: %" G_GINT64_FORMAT, srt_time);
+  }
 #else
   /* Else use the unix epoch monotonic clock */
   srt_time = g_get_real_time ();
-  GST_DEBUG_OBJECT (src, "Using unix epoch monotonic clock: %" G_GINT64_FORMAT, srt_time);
+  if (log_counter % 100 == 0) {
+    GST_DEBUG_OBJECT (src, "Using unix epoch monotonic clock: %" G_GINT64_FORMAT, srt_time);
+  }
 #endif
   gst_object_unref (clock);
 
   gst_buffer_unmap (outbuf, &info);
 
-  GST_LOG_OBJECT (src,
-      "recv_len:%" G_GSIZE_FORMAT " pktseq:%d msgno:%d srctime:%"
-      G_GINT64_FORMAT, recv_len, mctrl.pktseq, mctrl.msgno, mctrl.srctime);
+  if (log_counter % 100 == 0) {
+    GST_LOG_OBJECT (src,
+        "recv_len:%" G_GSIZE_FORMAT " pktseq:%d msgno:%d srctime:%"
+        G_GINT64_FORMAT, recv_len, mctrl.pktseq, mctrl.msgno, mctrl.srctime);
+  }
 
   if (g_cancellable_is_cancelled (self->srtobject->cancellable)) {
     GST_DEBUG_OBJECT (src, "Cancellable is cancelled, returning GST_FLOW_FLUSHING");
@@ -249,7 +262,9 @@ retry:
   else
     delay = 0;
 
-  GST_LOG_OBJECT (src, "delay: %" GST_STIME_FORMAT, GST_STIME_ARGS (delay));
+  if (log_counter % 100 == 0) {
+    GST_LOG_OBJECT (src, "delay: %" GST_STIME_FORMAT, GST_STIME_ARGS (delay));
+  }
 
   if (delay < 0) {
     GST_WARNING_OBJECT (src,
@@ -272,17 +287,20 @@ retry:
 
   gst_buffer_resize (outbuf, 0, recv_len);
 
-  GST_LOG_OBJECT (src,
-      "filled buffer from _get of size %" G_GSIZE_FORMAT ", ts %"
-      GST_TIME_FORMAT ", dur %" GST_TIME_FORMAT
-      ", offset %" G_GINT64_FORMAT ", offset_end %" G_GINT64_FORMAT,
-      gst_buffer_get_size (outbuf),
-      GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (outbuf)),
-      GST_TIME_ARGS (GST_BUFFER_DURATION (outbuf)),
-      GST_BUFFER_OFFSET (outbuf), GST_BUFFER_OFFSET_END (outbuf));
+    GST_LOG_OBJECT (src,
+        "filled buffer from _get of size %" G_GSIZE_FORMAT ", ts %"
+        GST_TIME_FORMAT ", dur %" GST_TIME_FORMAT
+        ", offset %" G_GINT64_FORMAT ", offset_end %" G_GINT64_FORMAT,
+        gst_buffer_get_size (outbuf),
+        GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (outbuf)),
+        GST_TIME_ARGS (GST_BUFFER_DURATION (outbuf)),
+        GST_BUFFER_OFFSET (outbuf), GST_BUFFER_OFFSET_END (outbuf));
 
 out:
-  GST_DEBUG_OBJECT (src, "Exiting gst_srt_src_fill with return value: %d", ret);
+  if (log_counter % 100 == 0) {
+    GST_DEBUG_OBJECT (src, "Exiting gst_srt_src_fill with return value: %d", ret);
+  }
+  log_counter++;
   return ret;
 }
 
