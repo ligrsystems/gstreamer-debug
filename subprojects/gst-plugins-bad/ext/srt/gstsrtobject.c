@@ -1505,6 +1505,9 @@ gst_srt_object_read (GstSRTObject * srtobject, guint8 * data, gsize size,
   SRTSOCKET sock = SRT_INVALID_SOCK;
   gboolean auto_reconnect;
   GError *internal_error = NULL;
+  static int log_counter = 0;
+  GstClockTime start_time, end_time, duration;
+  GstClock *clock;
 
   /* Only source element can read data */
   g_return_val_if_fail (gst_uri_handler_get_uri_type (GST_URI_HANDLER
@@ -1544,6 +1547,9 @@ retry:
     sock = srtobject->sock;
   }
 
+  clock = gst_element_get_clock (GST_ELEMENT (srtobject->element));
+  start_time = gst_clock_get_time (clock);
+
   while (!g_cancellable_is_cancelled (srtobject->cancellable)) {
     SRTSOCKET rsock, wsock;
     gint rsocklen = 1, wsocklen = 1;
@@ -1564,7 +1570,9 @@ retry:
         break;
     }
 
-    GST_TRACE_OBJECT (srtobject->element, "Waiting for read");
+    if (log_counter % 100 == 0) {
+      GST_TRACE_OBJECT (srtobject->element, "Waiting for read");
+    }
     ret =
         srt_epoll_wait (poll_id, &rsock, &rsocklen, &wsock, &wsocklen,
         poll_timeout, &rsys, &rsyslen, &wsys, &wsyslen);
@@ -1619,6 +1627,16 @@ retry:
     break;
   }
 
+  end_time = gst_clock_get_time (clock);
+  duration = end_time - start_time;
+
+  if (log_counter % 100 == 0) {
+    GST_DEBUG_OBJECT (srtobject->element, "Exiting gst_srt_object_read with return value: %d", len);
+    GST_DEBUG_OBJECT (srtobject->element, "Duration of gst_srt_object_read: %" GST_TIME_FORMAT, GST_TIME_ARGS(duration));
+  }
+  log_counter++;
+
+  gst_object_unref (clock);
   return len;
 
 err:
